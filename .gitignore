@@ -1,0 +1,13 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.local
+weights/*.pt
+weights/*.onnx
+weights/*.engine
+*.DS_Store
+.idea/
+.vscode/
