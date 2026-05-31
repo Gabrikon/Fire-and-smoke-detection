@@ -27,7 +27,7 @@ from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from app import db
-from app.config import settings
+from app.config import CLASS_NAMES, settings
 from app.detect import yolo
 
 FRONTEND_DIR = os.environ.get("FRONTEND_DIR", os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -138,7 +138,7 @@ def create_app(deps: Deps) -> FastAPI:
             "detector": "YOLO26",
             "vision_model": settings.dam_model,
             "reasoner_model": settings.reasoner_model,
-            "classes": yolo.CLASS_NAMES,
+            "classes": CLASS_NAMES,
         }
 
     @app.post("/user")
