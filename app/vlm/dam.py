@@ -1,4 +1,4 @@
-"""NVIDIA DAM-3B-Video — localized region description (the "Describe Anything" model).
+"""NVIDIA DAM-3B-Video: localized region description (the "Describe Anything" model).
 
 Given a frame (or a short clip) plus a region from YOLO, DAM produces a precise localized
 description of exactly that region. We feed it the highest-confidence YOLO box, converted to a

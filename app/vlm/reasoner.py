@@ -1,4 +1,4 @@
-"""Safety-advisory reasoner — NVIDIA NIM (OpenAI-compatible cloud API).
+"""Safety-advisory reasoner: NVIDIA NIM (OpenAI-compatible cloud API).
 
 Stage 2 of the two-stage VLM. DAM-3B already "saw" the scene and produced a precise localized
 description of the fire/smoke region; this stage is a strong instruction-following LLM that turns
