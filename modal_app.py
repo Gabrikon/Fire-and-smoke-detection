@@ -46,9 +46,12 @@ dam_image = (
     .apt_install("git", "libgl1", "libglib2.0-0")
     .pip_install("torch", "torchvision")  # CUDA build by default on linux
     .pip_install(
-        "transformers>=4.40", "accelerate", "einops", "sentencepiece", "protobuf",
-        "huggingface_hub>=0.27", "hf_transfer", "pillow",
-        # opencv 4.10 is the last line that supports numpy 1.x; describe-anything pins numpy 1.26,
+        # describe-anything is VILA-based and imports `no_init_weights` from
+        # transformers.modeling_utils, which newer transformers removed. Its pyproject only sets a
+        # lower bound (>=4.41.2), so we pin a version that still exposes that symbol.
+        "transformers==4.46.3", "tokenizers>=0.19.1", "accelerate>=0.28", "einops",
+        "sentencepiece", "protobuf", "huggingface_hub>=0.27", "hf_transfer", "pillow",
+        # opencv 4.10 is the last line that supports numpy 1.x; describe-anything pins numpy 1.x,
         # so newer opencv (which requires numpy>=2) would fail to import in this container.
         "opencv-python-headless==4.10.0.84", "numpy>=1.26,<2", "decord",
     )
