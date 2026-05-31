@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Fire & Smoke Watch - Admin</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+tailwind.config={theme:{extend:{colors:{ink:'#0b0f14',panel:'#11161d',panel2:'#161b22',edge:'#222b36',ember:'#ef4444',flame:'#f59e0b',clear:'#22c55e'}}}}
+</script>
+<style>body{background:#0b0f14}[x-cloak]{display:none!important}</style>
+</head>
+<body class="text-slate-200 min-h-screen" x-data="admin()" x-init="init()">
+
+<header class="border-b border-edge bg-panel/80 px-4 py-3 flex items-center gap-3">
+  <div class="text-2xl">🔥</div>
+  <h1 class="font-bold flex-1">Fire &amp; Smoke Watch · Admin</h1>
+  <button x-show="authed" @click="logout()" class="text-xs px-3 py-1.5 rounded-lg bg-panel2 border border-edge">Sign out</button>
+</header>
+
+<!-- Login -->
+<div x-show="!authed" class="max-w-sm mx-auto mt-24 bg-panel border border-edge rounded-2xl p-6">
+  <h2 class="font-semibold mb-2">Admin sign in</h2>
+  <p class="text-xs text-slate-400 mb-3">Enter the admin access token.</p>
+  <input x-model="token" type="password" placeholder="fire-admin-..." class="w-full bg-ink border border-edge rounded-lg px-3 py-2 text-sm mb-2" @keydown.enter="login()">
+  <div class="text-xs text-ember mb-2" x-show="error" x-text="error"></div>
+  <button @click="login()" class="w-full text-sm px-3 py-2 rounded-lg bg-clear/20 text-clear border border-clear/40">Sign in</button>
+</div>
+
+<!-- Dashboard -->
+<main x-show="authed" x-cloak class="max-w-5xl mx-auto px-4 py-6 space-y-6">
+  <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <template x-for="c in cards" :key="c.label">
+      <div class="bg-panel rounded-xl border border-edge p-4 text-center">
+        <div class="text-[10px] uppercase tracking-wide text-slate-500" x-text="c.label"></div>
+        <div class="mt-1 text-xl font-bold" x-text="c.value"></div>
+      </div>
+    </template>
+  </div>
+
+  <!-- tokens -->
+  <section class="bg-panel rounded-2xl border border-edge p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-sm">Access tokens</h2>
+      <div class="flex gap-2">
+        <select x-model="newKind" class="text-xs bg-ink border border-edge rounded-lg px-2 py-1.5">
+          <option value="secondary">secondary</option><option value="primary">primary</option>
+        </select>
+        <input x-model="newLabel" placeholder="label" class="text-xs bg-ink border border-edge rounded-lg px-2 py-1.5 w-28">
+        <button @click="createToken()" class="text-xs px-3 py-1.5 rounded-lg bg-clear/20 text-clear border border-clear/40">Create</button>
+      </div>
+    </div>
+    <div class="text-xs text-ember mb-2" x-show="tokenError" x-text="tokenError"></div>
+    <table class="w-full text-xs">
+      <thead class="text-slate-500 text-left"><tr><th class="py-1">Token</th><th>Label</th><th>Kind</th><th>Active</th><th></th></tr></thead>
+      <tbody>
+        <template x-for="t in tokens" :key="t.id">
+          <tr class="border-t border-edge/60">
+            <td class="py-1.5 font-mono" x-text="t.token"></td>
+            <td x-text="t.label||'-'"></td>
+            <td x-text="t.kind"></td>
+            <td><span :class="t.active?'text-clear':'text-slate-500'" x-text="t.active?'on':'off'"></span></td>
+            <td class="text-right">
+              <button @click="copy(t.token)" class="px-2 py-1 rounded bg-panel2 border border-edge mr-1">copy</button>
+              <button @click="toggle(t)" class="px-2 py-1 rounded border" :class="t.active?'border-ember/40 text-ember':'border-clear/40 text-clear'" x-text="t.active?'deactivate':'activate'"></button>
+            </td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- usage -->
+  <section class="bg-panel rounded-2xl border border-edge p-4">
+    <h2 class="font-semibold text-sm mb-3">Advisories per day (last 14)</h2>
+    <template x-if="!daily.length"><p class="text-xs text-slate-500">No data yet.</p></template>
+    <template x-for="d in daily" :key="d.day">
+      <div class="flex items-center gap-2 text-xs py-0.5">
+        <span class="w-24 text-slate-400" x-text="d.day"></span>
+        <div class="h-3 bg-flame/70 rounded" :style="'width:'+Math.min(100,d.advisories*8)+'px'"></div>
+        <span x-text="d.advisories"></span>
+      </div>
+    </template>
+  </section>
+</main>
+
+<script>
+function admin(){
+  return {
+    token: sessionStorage.getItem('fire_admin')||'', authed:false, error:'', tokenError:'',
+    tokens:[], cards:[], daily:[], newKind:'secondary', newLabel:'',
+    H(){return {'X-Admin-Token':this.token,'Content-Type':'application/json'};},
+    async init(){ if(this.token){ await this.login(true); } },
+    async login(silent){
+      this.error='';
+      try{
+        const r=await (await fetch('/admin/api/auth',{method:'POST',headers:this.H()})).json();
+        if(!r.ok){ if(!silent)this.error='Invalid admin token.'; this.authed=false; return; }
+        sessionStorage.setItem('fire_admin',this.token); this.authed=true; await this.refresh();
+      }catch(e){ this.error='Sign in failed.'; }
+    },
+    logout(){ sessionStorage.removeItem('fire_admin'); this.authed=false; this.token=''; },
+    async refresh(){
+      try{
+        const t=await (await fetch('/admin/api/tokens',{headers:this.H()})).json(); this.tokens=t.tokens||[];
+        const s=await (await fetch('/admin/api/stats',{headers:this.H()})).json();
+        const su=s.summary||{}, td=s.today||{};
+        this.daily=s.daily||[];
+        this.cards=[
+          {label:'Users',value:su.users||0},
+          {label:'Events',value:su.events||0},
+          {label:'Advisories',value:su.advisories||0},
+          {label:'Events today',value:td.events||0},
+          {label:'Advisories today',value:td.advisories||0},
+        ];
+      }catch(e){}
+    },
+    async toggle(t){ await fetch('/admin/api/tokens/toggle',{method:'POST',headers:this.H(),body:JSON.stringify({id:t.id,active:!t.active})}); this.refresh(); },
+    async createToken(){
+      this.tokenError='';
+      const r=await fetch('/admin/api/tokens/create',{method:'POST',headers:this.H(),body:JSON.stringify({kind:this.newKind,label:this.newLabel})});
+      const d=await r.json(); if(d.error){this.tokenError=d.error;return;} this.newLabel=''; this.refresh();
+    },
+    copy(s){ navigator.clipboard.writeText(s); },
+  }
+}
+</script>
+</body>
+</html>
