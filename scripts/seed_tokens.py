@@ -21,7 +21,7 @@ except Exception:  # noqa: BLE001
 import asyncpg
 
 DB_URL = os.environ.get("SUPABASE_DB_URL", "")
-SCHEMA = os.environ.get("DB_SCHEMA", "fire")
+SCHEMA = os.environ.get("DB_SCHEMA", "fire_detection")
 N_PRIMARY = 3
 N_SECONDARY = 7
 

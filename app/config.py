@@ -57,7 +57,7 @@ class Settings:
 
     # --- Database (self-hosted Supabase / Postgres on Railway) ---
     db_url: str = os.environ.get("SUPABASE_DB_URL", "")
-    db_schema: str = os.environ.get("DB_SCHEMA", "fire")
+    db_schema: str = os.environ.get("DB_SCHEMA", "fire_detection")
 
     # --- Access model (open UI; mirrors naija-petro) ---
     admin_token: str = os.environ.get("ADMIN_TOKEN", "")
