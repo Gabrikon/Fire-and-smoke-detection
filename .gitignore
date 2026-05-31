@@ -1,13 +1,32 @@
+# Python
 venv/
 .venv/
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets / env
 .env
 .env.local
-weights/*.pt
+
+# Model weights
+# (weights/fire_yolo_best.pt is already tracked and stays committed; ignore other artifacts)
 weights/*.onnx
 weights/*.engine
+
+# Modal / local caches
+.modal/
+hf_cache/
+
+# Test media
+test_images/
+test_clips/
+*.tmp.mp4
+
+# OS / editors
 *.DS_Store
 .idea/
 .vscode/
