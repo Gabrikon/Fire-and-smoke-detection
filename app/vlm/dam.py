@@ -8,7 +8,7 @@ both: a single-frame list for an image, a multi-frame list for a clip.
 The model is loaded once per Modal GPU container (see modal_app.py) and reused across requests.
 
 Reference API (NVlabs/describe-anything):
-    dam = DescribeAnythingModel(model_path=..., conv_mode="v1", prompt_mode="focal_prompt").to("cuda")
+    dam = DescribeAnythingModel(model_path=..., conv_mode="v1", prompt_mode="full+focal_crop").to("cuda")
     for tok in dam.get_description([img], [mask], query, streaming=True, temperature=0.2,
                                    top_p=0.5, num_beams=1, max_new_tokens=512): ...
 """
@@ -54,7 +54,7 @@ def _bgr_to_pil(image_bgr: np.ndarray) -> "object":
 class DAM:
     """Wrapper around DescribeAnythingModel, loaded once and reused."""
 
-    def __init__(self, model_repo: str, conv_mode: str = "v1", prompt_mode: str = "focal_prompt"):
+    def __init__(self, model_repo: str, conv_mode: str = "v1", prompt_mode: str = "full+focal_crop"):
         import os
 
         import torch
