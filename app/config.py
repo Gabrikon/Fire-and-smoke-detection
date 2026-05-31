@@ -33,9 +33,15 @@ class Settings:
 
     # --- Detector (YOLO26) ---
     model_path: str = os.environ.get("MODEL_PATH", "weights/fire_yolo_best.pt")
-    conf_threshold: float = _f("CONF_THRESHOLD", 0.35)
+    # Per-class confidence: smoke is diffuse/low-contrast and scores lower, so it gets a lower
+    # threshold (high recall); the VLM + reasoner then filter steam/vapor false alarms.
+    conf_threshold: float = _f("CONF_THRESHOLD", 0.35)          # fire
+    conf_threshold_smoke: float = _f("CONF_THRESHOLD_SMOKE", 0.18)
     iou_threshold: float = _f("IOU_THRESHOLD", 0.45)
-    input_size: int = _i("INPUT_SIZE", 640)
+    input_size: int = _i("INPUT_SIZE", 960)                     # higher res helps diffuse smoke
+
+    def conf_by_class(self) -> dict:
+        return {"fire": self.conf_threshold, "smoke": self.conf_threshold_smoke}
 
     # --- Alert gating (when to escalate to the VLM) ---
     consecutive_frames: int = _i("CONSECUTIVE_FRAMES", 5)

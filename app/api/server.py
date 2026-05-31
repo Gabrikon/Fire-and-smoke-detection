@@ -37,8 +37,8 @@ FRONTEND_DIR = os.environ.get("FRONTEND_DIR", os.path.join(os.path.dirname(__fil
 class Deps:
     """GPU/inference callables injected by the Modal layer (or a local stub)."""
     detect_bytes: Callable[[bytes], Awaitable[list[dict]]]
-    describe_region_bytes: Callable[[bytes, list], Awaitable[str]]
-    describe_video_bytes: Callable[[list, list], Awaitable[str]]
+    describe_region_bytes: Callable[[bytes, list, str], Awaitable[str]]
+    describe_video_bytes: Callable[[list, list, str], Awaitable[str]]
 
 
 # --------------------------------------------------------------------------- #
@@ -189,11 +189,17 @@ def create_app(deps: Deps) -> FastAPI:
             if not detections:
                 yield _sse({"event": "advisory", "advisory": _clear_advisory(), "detections": []})
                 return
-            box = yolo.primary_box(detections)
+            # Describe one region per detected class (so smoke is never dropped in favor of fire).
+            regions = yolo.boxes_per_class(detections)
             summary = yolo.format_detections(detections)
 
             yield _sse({"event": "status", "stage": "describing", "detections": detections})
-            description = await deps.describe_region_bytes(image_bytes, box)
+            parts = []
+            for cls, det in regions.items():
+                desc = await deps.describe_region_bytes(image_bytes, det["bbox"], cls)
+                if desc:
+                    parts.append(f"{cls.capitalize()} region: {desc}")
+            description = "\n\n".join(parts)
 
             yield _sse({"event": "status", "stage": "reasoning", "description": description})
             advisory, _raw = await _reason(summary, description)
@@ -228,40 +234,56 @@ def create_app(deps: Deps) -> FastAPI:
                 return
 
             yield _sse({"event": "status", "stage": "detecting"})
-            # Detect on each sampled frame; track the peak (highest-confidence) detection.
-            peak = {"conf": -1.0, "box": None, "dets": [], "frame_jpeg": None}
-            fire_frames = []
+            # Detect on each sampled frame; aggregate per-class peak box + how many frames it
+            # appears in (temporal persistence: smoke seen across many frames is more likely real
+            # than a one-frame artifact).
+            n = len(frames)
+            det_frames = []                # jpegs that contained any detection
+            per_class: dict = {}           # cls -> {"conf","box","frames"}
+            peak_dets, peak_conf = [], -1.0
             for fr in frames:
                 jpeg = _encode_jpeg(fr)
                 dets = await deps.detect_bytes(jpeg)
-                if dets:
-                    fire_frames.append(jpeg)
-                    top = max(dets, key=lambda d: d["confidence"])
-                    if top["confidence"] > peak["conf"]:
-                        peak = {"conf": top["confidence"], "box": top["bbox"],
-                                "dets": dets, "frame_jpeg": jpeg}
+                if not dets:
+                    continue
+                det_frames.append(jpeg)
+                for d in dets:
+                    e = per_class.setdefault(d["class"], {"conf": -1.0, "box": None, "frames": 0})
+                    e["frames"] += 1
+                    if d["confidence"] > e["conf"]:
+                        e["conf"], e["box"] = d["confidence"], d["bbox"]
+                top = max(dets, key=lambda d: d["confidence"])
+                if top["confidence"] > peak_conf:
+                    peak_conf, peak_dets = top["confidence"], dets
 
-            if peak["box"] is None:
+            if not per_class:
                 yield _sse({"event": "advisory", "advisory": _clear_advisory(), "detections": []})
                 return
 
-            summary = yolo.format_detections(peak["dets"])
-            yield _sse({"event": "status", "stage": "describing", "detections": peak["dets"]})
-            # Temporal description across the frames that contained fire/smoke.
-            description = await deps.describe_video_bytes(fire_frames or [peak["frame_jpeg"]], peak["box"])
+            summary = yolo.format_detections(peak_dets)
+            persist = "; ".join(f"{c} present in {e['frames']}/{n} sampled frames"
+                                for c, e in per_class.items())
+            yield _sse({"event": "status", "stage": "describing", "detections": peak_dets})
+            parts = []
+            for cls, e in per_class.items():
+                desc = await deps.describe_video_bytes(det_frames, e["box"], cls)
+                if desc:
+                    parts.append(f"{cls.capitalize()} region: {desc}")
+            description = "\n\n".join(parts)
 
             yield _sse({"event": "status", "stage": "reasoning", "description": description})
             advisory, _raw = await _reason(
                 summary, description,
-                extra="This description spans multiple frames of a video clip; consider whether "
-                      "the fire or smoke appears to be growing, shrinking, or stable over time.",
+                extra=f"Temporal persistence across the clip: {persist}. Consider whether the fire "
+                      "or smoke appears to be growing, shrinking, or stable, and that something seen "
+                      "in only one frame is more likely a false detection.",
             )
 
             latency = int((time.time() - t0) * 1000)
             await _persist(request, token, has_token, "video", "advise_video",
-                           peak["dets"], advisory, description, latency)
+                           peak_dets, advisory, description, latency)
             yield _sse({"event": "advisory", "advisory": advisory,
-                        "detections": peak["dets"], "description": description,
+                        "detections": peak_dets, "description": description,
                         "latency_ms": latency})
 
         return StreamingResponse(gen(), media_type="text/event-stream")

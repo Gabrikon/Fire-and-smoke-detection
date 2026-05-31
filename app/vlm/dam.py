@@ -16,15 +16,36 @@ from __future__ import annotations
 
 import numpy as np
 
-# Fire-focused description prompt. DAM is a captioner; we steer it toward the visual cues the
-# safety reasoner needs, without asking it to make the safety decision itself.
+# DAM is a captioner; we steer it toward the visual cues the safety reasoner needs, without asking
+# it to make the safety decision itself. Smoke gets a dedicated prompt because the hard part is
+# telling real combustion smoke apart from steam, vapor, fog, dust, or a controlled flare's exhaust.
+_SMOKE_QUERY = (
+    "<image>\nDescribe the highlighted smoke region in precise detail: the color of the smoke "
+    "(white, grey, brown, or black), its density and opacity, whether it is a rising plume or a "
+    "diffuse haze, how much there is, and the likely source. Crucially, judge whether this looks "
+    "like genuine combustion smoke versus harmless steam, water vapor, fog, dust, cloud, or a "
+    "controlled flare's exhaust, and say which and why."
+)
+_FIRE_QUERY = (
+    "<image>\nDescribe the highlighted fire region in precise detail: flame size, color, and "
+    "intensity; the equipment, surface, or material that is burning; and whether it looks like an "
+    "active, spreading fire or a small contained or controlled flame such as a flare."
+)
 DEFAULT_QUERY = (
     "<image>\nDescribe the highlighted region in precise detail. Focus on any fire, flame, or "
-    "smoke: its size, color, and intensity; the equipment, surface, or structure involved; the "
-    "amount and color of any smoke; and whether it looks like an active spreading fire, a smoke "
-    "plume, steam or vapor, or a controlled flare. Note anything ambiguous or any sign it may be a "
-    "false alarm."
+    "smoke: its size, color, and intensity; the equipment or structure involved; and whether it "
+    "looks like an active fire, a smoke plume, steam or vapor, or a controlled flare. Note anything "
+    "ambiguous or any sign it may be a false alarm."
 )
+
+
+def query_for(target_class: str | None) -> str:
+    """Pick the description prompt for a detected class."""
+    if target_class == "smoke":
+        return _SMOKE_QUERY
+    if target_class == "fire":
+        return _FIRE_QUERY
+    return DEFAULT_QUERY
 
 
 def box_to_mask(height: int, width: int, box: list[float]) -> "object":
@@ -77,18 +98,18 @@ class DAM:
         )
         return "".join(tokens).strip()
 
-    def describe_region(self, image_bgr: np.ndarray, box: list[float], query: str | None = None,
-                        temperature: float = 0.2, top_p: float = 0.5,
+    def describe_region(self, image_bgr: np.ndarray, box: list[float], target_class: str | None = None,
+                        query: str | None = None, temperature: float = 0.2, top_p: float = 0.5,
                         max_new_tokens: int = 512) -> str:
         """Describe a single image region (single-frame path)."""
         h, w = image_bgr.shape[:2]
         img = _bgr_to_pil(image_bgr)
         mask = box_to_mask(h, w, box)
-        return self._describe([img], [mask], query or DEFAULT_QUERY,
+        return self._describe([img], [mask], query or query_for(target_class),
                               temperature, top_p, max_new_tokens)
 
-    def describe_video(self, frames_bgr: list[np.ndarray], box: list[float], query: str | None = None,
-                       temperature: float = 0.2, top_p: float = 0.5,
+    def describe_video(self, frames_bgr: list[np.ndarray], box: list[float], target_class: str | None = None,
+                       query: str | None = None, temperature: float = 0.2, top_p: float = 0.5,
                        max_new_tokens: int = 512) -> str:
         """Describe a region across sampled frames of a clip (temporal path).
 
@@ -100,5 +121,5 @@ class DAM:
         h, w = frames_bgr[0].shape[:2]
         imgs = [_bgr_to_pil(f) for f in frames_bgr]
         masks = [box_to_mask(h, w, box) for _ in frames_bgr]
-        return self._describe(imgs, masks, query or DEFAULT_QUERY,
+        return self._describe(imgs, masks, query or query_for(target_class),
                               temperature, top_p, max_new_tokens)

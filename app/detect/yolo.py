@@ -31,16 +31,23 @@ def decode_image(image_bytes: bytes) -> np.ndarray | None:
 def detect(
     model: Any,
     image_bgr: np.ndarray,
-    conf: float = 0.35,
+    conf_by_class: dict | None = None,
     iou: float = 0.45,
-    imgsz: int = 640,
+    imgsz: int = 960,
 ) -> list[dict]:
     """Run detection on a single BGR frame and return a list of detections.
 
+    `conf_by_class` maps a class name to its minimum confidence (e.g. {"fire": 0.35, "smoke": 0.18}).
+    We predict at the lowest threshold then filter per class, so smoke can use a lower bar than fire
+    without flooding fire with false positives.
+
     Each detection: {"class": str, "confidence": float, "bbox": [x1, y1, x2, y2]} (xyxy, pixels).
     """
-    results = model.predict(image_bgr, conf=conf, iou=iou, imgsz=imgsz, verbose=False)
-    return _detections_from_results(results)
+    conf_by_class = conf_by_class or {"fire": 0.35, "smoke": 0.18}
+    base = min(conf_by_class.values())
+    results = model.predict(image_bgr, conf=base, iou=iou, imgsz=imgsz, verbose=False)
+    dets = _detections_from_results(results)
+    return [d for d in dets if d["confidence"] >= conf_by_class.get(d["class"], base)]
 
 
 def _detections_from_results(results) -> list[dict]:
@@ -94,3 +101,17 @@ def primary_box(detections: list[dict]) -> list[float] | None:
     if not detections:
         return None
     return max(detections, key=lambda d: d["confidence"])["bbox"]
+
+
+def boxes_per_class(detections: list[dict]) -> dict:
+    """Highest-confidence detection per class, e.g. {"fire": {...}, "smoke": {...}}.
+
+    Used so DAM describes BOTH a fire region and a smoke region when both are present, instead of
+    only the single top box (which would otherwise always be the brighter, higher-scoring fire).
+    """
+    best: dict = {}
+    for d in detections:
+        c = d["class"]
+        if c not in best or d["confidence"] > best[c]["confidence"]:
+            best[c] = d
+    return best

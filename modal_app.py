@@ -96,7 +96,8 @@ class YOLOService:
             return []
         return self._yolo.detect(
             self.model, img,
-            conf=settings.conf_threshold, iou=settings.iou_threshold, imgsz=settings.input_size,
+            conf_by_class=settings.conf_by_class(),
+            iou=settings.iou_threshold, imgsz=settings.input_size,
         )
 
 
@@ -121,17 +122,18 @@ class DAMService:
         self.dam = DAM(settings.dam_model)
 
     @modal.method()
-    def describe_region_bytes(self, image_bytes: bytes, box: list) -> str:
+    def describe_region_bytes(self, image_bytes: bytes, box: list, label: str = "") -> str:
         import cv2
         import numpy as np
 
         img = cv2.imdecode(np.frombuffer(image_bytes, np.uint8), cv2.IMREAD_COLOR)
         if img is None or not box:
             return ""
-        return self.dam.describe_region(img, box, max_new_tokens=settings.dam_max_new_tokens)
+        return self.dam.describe_region(img, box, target_class=label or None,
+                                        max_new_tokens=settings.dam_max_new_tokens)
 
     @modal.method()
-    def describe_video_bytes(self, frames_bytes: list, box: list) -> str:
+    def describe_video_bytes(self, frames_bytes: list, box: list, label: str = "") -> str:
         import cv2
         import numpy as np
 
@@ -142,7 +144,8 @@ class DAMService:
                 frames.append(fr)
         if not frames or not box:
             return ""
-        return self.dam.describe_video(frames, box, max_new_tokens=settings.dam_max_new_tokens)
+        return self.dam.describe_video(frames, box, target_class=label or None,
+                                       max_new_tokens=settings.dam_max_new_tokens)
 
 
 # --------------------------------------------------------------------------- #
@@ -152,12 +155,12 @@ async def _detect_bytes(image_bytes: bytes) -> list[dict]:
     return await YOLOService().detect_bytes.remote.aio(image_bytes)
 
 
-async def _describe_region_bytes(image_bytes: bytes, box: list) -> str:
-    return await DAMService().describe_region_bytes.remote.aio(image_bytes, box)
+async def _describe_region_bytes(image_bytes: bytes, box: list, label: str = "") -> str:
+    return await DAMService().describe_region_bytes.remote.aio(image_bytes, box, label)
 
 
-async def _describe_video_bytes(frames_bytes: list, box: list) -> str:
-    return await DAMService().describe_video_bytes.remote.aio(frames_bytes, box)
+async def _describe_video_bytes(frames_bytes: list, box: list, label: str = "") -> str:
+    return await DAMService().describe_video_bytes.remote.aio(frames_bytes, box, label)
 
 
 # --------------------------------------------------------------------------- #
