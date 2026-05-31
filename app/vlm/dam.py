@@ -55,11 +55,13 @@ class DAM:
     """Wrapper around DescribeAnythingModel, loaded once and reused."""
 
     def __init__(self, model_repo: str, conv_mode: str = "v1", prompt_mode: str = "focal_prompt"):
+        import os
+
         import torch
         from huggingface_hub import snapshot_download
         from dam import DescribeAnythingModel
 
-        local_dir = snapshot_download(model_repo)
+        local_dir = snapshot_download(model_repo, token=os.environ.get("HF_TOKEN") or None)
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.model = DescribeAnythingModel(
             model_path=local_dir, conv_mode=conv_mode, prompt_mode=prompt_mode,
