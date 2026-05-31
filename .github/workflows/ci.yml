@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt ruff
+      - name: Compile all modules
+        run: python -m compileall app scripts modal_app.py
+      - name: Lint (pyflakes-level errors only)
+        run: ruff check app scripts --select F,E9
+      - name: Import smoke test (no GPU / torch)
+        run: |
+          python - <<'PY'
+          import app.config, app.detect.yolo, app.vlm.reasoner, app.vlm.dam, app.db, app.api.server
+          from app.vlm.reasoner import _parse_advisory
+          a = _parse_advisory('{"severity":"HIGH","escalation_level":"EVACUATE_ZONE"}')
+          assert a["severity"] == "HIGH", a
+          print("smoke OK")
+          PY
+
+  deploy:
+    # Deploys to Modal on pushes to main, only if the Modal token secrets are configured.
+    needs: lint-test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Deploy to Modal
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+        run: |
+          if [ -z "$MODAL_TOKEN_ID" ] || [ -z "$MODAL_TOKEN_SECRET" ]; then
+            echo "Modal token secrets not set; skipping deploy."
+            exit 0
+          fi
+          pip install modal
+          modal deploy modal_app.py
