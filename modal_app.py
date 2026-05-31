@@ -15,8 +15,6 @@ naija-petro vLLM image needed). Force fresh code after redeploy with `modal app 
 """
 from __future__ import annotations
 
-import os
-
 import modal
 
 from app.config import APP_NAME, settings
@@ -83,7 +81,10 @@ class YOLOService:
         from app.detect import yolo
 
         self._yolo = yolo
-        self.model = yolo.load_model(os.environ["MODEL_PATH"])
+        # Load from the baked-in image path directly. We do NOT read MODEL_PATH from the
+        # environment here: the Modal secret (built from .env) carries the local relative
+        # MODEL_PATH and would override the image env, breaking the lookup in-container.
+        self.model = yolo.load_model(f"{WEIGHTS_REMOTE}/fire_yolo_best.pt")
 
     @modal.method()
     def detect_bytes(self, image_bytes: bytes) -> list[dict]:
