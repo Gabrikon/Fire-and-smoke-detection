@@ -6,17 +6,19 @@
 <title>Fire & Smoke Watch - Admin</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
-tailwind.config={theme:{extend:{colors:{ink:'#0b0f14',panel:'#11161d',panel2:'#161b22',edge:'#222b36',ember:'#ef4444',flame:'#f59e0b',clear:'#22c55e'}}}}
+tailwind.config={theme:{extend:{fontFamily:{display:['Sora','sans-serif']},colors:{ink:'#0a0e13',panel:'#0f141b',panel2:'#141a22',edge:'rgba(255,255,255,0.08)',ember:'#ef4444',flame:'#f59e0b',clear:'#22c55e'}}}}
 </script>
-<style>body{background:#0b0f14}[x-cloak]{display:none!important}</style>
+<style>body{background:#0a0e13;font-family:Inter,system-ui,sans-serif}h1,h2,h3{font-family:Sora,sans-serif}[x-cloak]{display:none!important}[data-lucide]{width:1em;height:1em;display:inline-block;vertical-align:-.125em}</style>
 </head>
 <body class="text-slate-200 min-h-screen" x-data="admin()" x-init="init()">
 
-<header class="border-b border-edge bg-panel/80 px-4 py-3 flex items-center gap-3">
-  <div class="text-2xl">🔥</div>
-  <h1 class="font-bold flex-1">Fire &amp; Smoke Watch · Admin</h1>
-  <button x-show="authed" @click="logout()" class="text-xs px-3 py-1.5 rounded-lg bg-panel2 border border-edge">Sign out</button>
+<header class="border-b border-edge bg-panel/80 px-4 py-3 flex items-center gap-3" x-init="$nextTick(()=>window.lucide&&lucide.createIcons())">
+  <span class="grid place-items-center w-8 h-8 rounded-lg text-white" style="background:linear-gradient(100deg,#f59e0b,#ef4444)"><i data-lucide="flame"></i></span>
+  <h1 class="font-bold flex-1">Emberwatch · Admin</h1>
+  <button x-show="authed" @click="logout()" class="text-xs px-3 py-1.5 rounded-lg bg-panel2 border border-edge inline-flex items-center gap-1.5"><i data-lucide="log-out"></i> Sign out</button>
 </header>
 
 <!-- Login -->
