@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass
 from typing import Awaitable, Callable
 
-from fastapi import FastAPI, Request, UploadFile, File, Form
+from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from app import db
